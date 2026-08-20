@@ -1,6 +1,6 @@
 # Simple Webpage Editor
 
-![Simple Webpage Editor screenshot](simple-webpage-editor-screen.png)
+![Simple Webpage Editor screenshot](simple-webpage-editor-screen2.png)
 
 A single-file, browser-based HTML editor. Open any `.html` file, edit text inline, and save the result. No server, no build step, no dependencies.
 
