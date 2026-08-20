@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simple Webpage Editor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: #16213e;
+    border-bottom: 1px solid #0f3460;
+    flex: 0 0 auto;
+  }
+
+  .toolbar-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e94560;
+    margin-right: 8px;
+  }
+
+  .filename {
+    font-size: 13px;
+    color: #a0a0b8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  button, label.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+    background: #16213e;
+    color: #e0e0e0;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover, label.btn:hover {
+    background: #0f3460;
+  }
+
+  button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  button:disabled:hover {
+    background: #16213e;
+  }
+
+  .btn-save {
+    background: #e94560;
+    border-color: #e94560;
+    color: #fff;
+    font-weight: 600;
+  }
+  .btn-save:hover {
+    background: #c73750;
+  }
+  .btn-save:disabled:hover {
+    background: #e94560;
+  }
+
+  #file-input {
+    display: none;
+  }
+
+  .status {
+    font-size: 12px;
+    color: #7a7a90;
+    padding: 0 4px;
+  }
+  .status.unsaved {
+    color: #e94560;
+  }
+
+  .landing {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .landing p {
+    font-size: 15px;
+    color: #7a7a90;
+  }
+
+  .landing label.btn {
+    font-size: 15px;
+    padding: 10px 24px;
+    background: #e94560;
+    border-color: #e94560;
+    color: #fff;
+    font-weight: 600;
+  }
+  .landing label.btn:hover {
+    background: #c73750;
+  }
+
+  #preview {
+    flex: 1 1 auto;
+    border: none;
+    width: 100%;
+    display: none;
+    background: #fff;
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="toolbar-title">Simple Webpage Editor <span style="font-weight:400;color:#7a7a90;font-size:11px">by w3b<span style="color:#b8f34a">guru</span></span></span>
+  <label class="btn" for="file-input">Open file</label>
+  <input type="file" id="file-input" accept=".html,.htm">
+  <span class="filename" id="filename"></span>
+  <span class="status" id="status"></span>
+  <button id="btn-save" class="btn-save" disabled>Save</button>
+  <button id="btn-save-as" class="btn-save" disabled>Save as&#8230;</button>
+</div>
+
+<div class="landing" id="landing">
+  <p>Open an HTML file to start editing.</p>
+  <label class="btn" for="file-input">Choose file</label>
+</div>
+
+<iframe id="preview"></iframe>
+
+<script>
+(function () {
+  var fileInput  = document.getElementById('file-input');
+  var preview    = document.getElementById('preview');
+  var landing    = document.getElementById('landing');
+  var btnSave    = document.getElementById('btn-save');
+  var btnSaveAs  = document.getElementById('btn-save-as');
+  var filenameEl = document.getElementById('filename');
+  var statusEl   = document.getElementById('status');
+
+  var originalHTML = '';
+  var currentName  = '';
+  var dirty = false;
+
+  var SKIP_TAGS = {
+    SCRIPT:1, STYLE:1, SVG:1, NOSCRIPT:1, IFRAME:1, OBJECT:1, EMBED:1,
+    META:1, LINK:1, BR:1, HR:1, IMG:1, INPUT:1, SELECT:1, TEXTAREA:1,
+    VIDEO:1, AUDIO:1, CANVAS:1, HEAD:1, HTML:1, BODY:1
+  };
+
+  var CONTAINER_TAGS = {
+    DIV:1, SECTION:1, MAIN:1, HEADER:1, FOOTER:1, NAV:1, ASIDE:1,
+    ARTICLE:1, TABLE:1, THEAD:1, TBODY:1, TFOOT:1, TR:1, UL:1, OL:1,
+    DL:1, FIGURE:1, FORM:1, FIELDSET:1, DETAILS:1, DIALOG:1,
+    TEMPLATE:1, SLOT:1, COLGROUP:1, COL:1, PICTURE:1, MAP:1
+  };
+
+  var EDIT_STYLE_ID = '__editor-style__';
+
+  function hasDirectText(el) {
+    for (var i = 0; i < el.childNodes.length; i++) {
+      var node = el.childNodes[i];
+      if (node.nodeType === 3 && node.textContent.trim().length > 0) return true;
+    }
+    return false;
+  }
+
+  function isEditable(el) {
+    if (el.nodeType !== 1) return false;
+    var tag = el.tagName;
+    if (SKIP_TAGS[tag]) return false;
+    if (el.closest('svg')) return false;
+    if (el.closest('script')) return false;
+    if (el.closest('style')) return false;
+    if (CONTAINER_TAGS[tag] && !hasDirectText(el)) return false;
+    if (el.children.length > 0 && !hasDirectText(el)) return false;
+    var text = el.textContent.trim();
+    if (text.length === 0) return false;
+    return true;
+  }
+
+  function setStatus(text, unsaved) {
+    statusEl.textContent = text;
+    statusEl.className = 'status' + (unsaved ? ' unsaved' : '');
+  }
+
+  function markDirty() {
+    if (!dirty) {
+      dirty = true;
+      setStatus('unsaved changes', true);
+      btnSave.disabled = false;
+    }
+  }
+
+  function injectEditMode(doc) {
+    var style = doc.createElement('style');
+    style.id = EDIT_STYLE_ID;
+    style.textContent =
+      '[contenteditable="true"] { outline: 2px solid transparent; cursor: text; border-radius: 2px; transition: outline-color 0.15s; }' +
+      '[contenteditable="true"]:hover { outline-color: rgba(51,102,204,0.3); }' +
+      '[contenteditable="true"]:focus { outline-color: #3366cc; outline-offset: 2px; }';
+    doc.head.appendChild(style);
+
+    doc.addEventListener('click', function (e) {
+      var link = e.target.closest('a');
+      if (link) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
+
+    var all = doc.body.querySelectorAll('*');
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].closest('[contenteditable="true"]')) continue;
+      if (isEditable(all[i])) {
+        all[i].setAttribute('contenteditable', 'true');
+        all[i].addEventListener('input', markDirty);
+      }
+    }
+  }
+
+  function stripEditMode(doc) {
+    var style = doc.getElementById(EDIT_STYLE_ID);
+    if (style) style.remove();
+
+    var els = doc.querySelectorAll('[contenteditable]');
+    for (var i = 0; i < els.length; i++) {
+      els[i].removeAttribute('contenteditable');
+    }
+  }
+
+  function syncTOC(doc) {
+    var headings = doc.querySelectorAll('h2[id]');
+    for (var i = 0; i < headings.length; i++) {
+      var id = headings[i].id;
+      var link = doc.querySelector('.toc a[href="#' + id + '"]');
+      if (link) {
+        link.textContent = headings[i].textContent;
+      }
+    }
+  }
+
+  function serializePage(doc) {
+    syncTOC(doc);
+    stripEditMode(doc);
+    var html = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML + '\n';
+    injectEditMode(doc);
+    return html;
+  }
+
+  function downloadFile(html, filename) {
+    var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function loadFile(file) {
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      originalHTML = e.target.result;
+      currentName = file.name;
+      filenameEl.textContent = currentName;
+
+      preview.srcdoc = originalHTML;
+      preview.style.display = 'block';
+      landing.style.display = 'none';
+      dirty = false;
+      btnSave.disabled = true;
+      btnSaveAs.disabled = false;
+      setStatus('editing', false);
+
+      preview.onload = function () {
+        var doc = preview.contentDocument;
+        if (doc) {
+          injectEditMode(doc);
+        }
+      };
+    };
+    reader.readAsText(file);
+  }
+
+  fileInput.addEventListener('change', function () {
+    if (fileInput.files.length > 0) {
+      if (dirty && !confirm('You have unsaved changes. Open a new file anyway?')) {
+        fileInput.value = '';
+        return;
+      }
+      loadFile(fileInput.files[0]);
+    }
+  });
+
+  btnSave.addEventListener('click', function () {
+    var doc = preview.contentDocument;
+    if (!doc) return;
+
+    var html = serializePage(doc);
+    downloadFile(html, currentName);
+
+    dirty = false;
+    btnSave.disabled = true;
+    setStatus('saved', false);
+  });
+
+  btnSaveAs.addEventListener('click', function () {
+    var doc = preview.contentDocument;
+    if (!doc) return;
+
+    var newName = prompt('Save as:', currentName);
+    if (!newName) return;
+    if (!/\.html?$/i.test(newName)) newName += '.html';
+
+    var html = serializePage(doc);
+    downloadFile(html, newName);
+
+    currentName = newName;
+    filenameEl.textContent = currentName;
+    dirty = false;
+    btnSave.disabled = true;
+    setStatus('saved as ' + newName, false);
+  });
+
+  window.addEventListener('beforeunload', function (e) {
+    if (dirty) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+})();
+</script>
+</body>
+</html>
