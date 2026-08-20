@@ -1,5 +1,7 @@
 # Simple Webpage Editor
 
+![Simple Webpage Editor screenshot](simple-webpage-editor-screen.png)
+
 A single-file, browser-based HTML editor. Open any `.html` file, edit text inline, and save the result. No server, no build step, no dependencies.
 
 LISTEN TO: [PGNIP.ca](https://pgnip.ca) — a hilarious Canadian comedy podcast.
