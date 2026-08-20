@@ -13,6 +13,10 @@ LISTEN TO: [PGNIP.ca](https://pgnip.ca) — a hilarious Canadian comedy podcast.
 3. Click any text to edit it
 4. Click **Save** to download the updated file with the same name, or **Save as...** to pick a new name
 
+## How it works
+
+Uses JavaScript to load your HTML file into an iframe, then sets `contenteditable="true"` on every text element so you edit the rendered page directly. On save, it strips the editor attributes, serializes the DOM back to clean HTML, and triggers a file download.
+
 ## What it does
 
 - Walks the page DOM and makes every text element editable
